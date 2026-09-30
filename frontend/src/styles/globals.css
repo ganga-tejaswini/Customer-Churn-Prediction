@@ -1,0 +1,60 @@
+@import 'tailwindcss';
+@import '@fontsource-variable/inter';
+
+/* Class-based dark mode: add "dark" to <html> (theme toggle arrives in Module 1). */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: 'Inter Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  /* Brand palette: deep navy and blue */
+  --color-navy-950: #071226;
+  --color-navy-900: #0b1f3f;
+  --color-navy-800: #12305e;
+  --color-navy-700: #1a447f;
+  --color-brand-50: #eff5ff;
+  --color-brand-100: #dbe8ff;
+  --color-brand-300: #8db6ff;
+  --color-brand-500: #2f6fe4;
+  --color-brand-600: #1f5bd0;
+  --color-brand-700: #1848a8;
+}
+
+/* Semantic tokens: components use these so light and dark stay consistent. */
+:root {
+  --bg: #f4f6fa;
+  --surface: #ffffff;
+  --border: #dfe4ed;
+  --text: #0f1b2d;
+  --muted: #5b6779;
+}
+.dark {
+  --bg: #070f1e;
+  --surface: #0d1a30;
+  --border: #1f3050;
+  --text: #e8eefb;
+  --muted: #94a3bd;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    font-family: var(--font-sans);
+    font-feature-settings: 'cv11', 'ss01';
+  }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background-color: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-brand-500);
+    outline-offset: 2px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  }
+}
