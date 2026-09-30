@@ -1,0 +1,17 @@
+{
+  "RandomForest": {
+    "statistic": 0.0,
+    "p_value": 0.00195,
+    "significant": true
+  },
+  "AdaBoost": {
+    "statistic": 6.0,
+    "p_value": 0.02734,
+    "significant": true
+  },
+  "GradientBoosting": {
+    "statistic": 17.0,
+    "p_value": 0.32227,
+    "significant": false
+  }
+}

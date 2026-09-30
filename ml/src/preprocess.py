@@ -6,8 +6,23 @@ Used by train.py and, later, by the backend at prediction time
 (the SAME preprocessor object must be reused, not rebuilt, so that
 a live prediction request is encoded exactly like training data was).
 
-Expected raw file: ml/data/raw/telco_churn.csv
-(Kaggle "Telco Customer Churn" by IBM — WA_Fn-UseC_-Telco-Customer-Churn.csv)
+UPDATED: this project's actual dataset is the *extended* IBM Telco
+Churn file (columns like "Senior Citizen", "Tenure Months", plus geo
+columns and Churn Score/CLTV/Churn Reason). This version:
+  1. Reads the .xlsx file directly (no CSV conversion needed).
+  2. Renames columns to the internal names the rest of the app uses
+     (gender, SeniorCitizen, tenure, PhoneService, ... Churn).
+  3. DROPS "Churn Score", "CLTV", and "Churn Reason" — these leak the
+     answer (Churn Reason literally states why the customer left;
+     Churn Score is someone else's pre-computed prediction). Training
+     on them would make the model meaningless.
+  4. Drops geo/ID columns (CustomerID, Count, Country, State, City,
+     Zip Code, Lat Long, Latitude, Longitude, Churn Value) since the
+     rest of the app (backend schema, frontend form) is built around
+     the standard 19-feature set, not location data.
+
+Expected raw file: dataset/Telco_churn.xlsx.xlsx (top level of the repo,
+sibling to ml/, backend/, frontend/)
 """
 
 import pandas as pd
@@ -18,43 +33,73 @@ from imblearn.over_sampling import SMOTE
 import joblib
 import os
 
-RAW_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "raw", "telco_churn.csv")
-PROCESSED_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "processed")
+RAW_PATH = os.path.join(
+    os.path.dirname(__file__), "..", "..", "dataset", "Telco_churn.xlsx.xlsx"
+)
+PROCESSED_DIR = os.path.join(os.path.dirname(__file__), "..", "processed")
 PREPROCESSOR_PATH = os.path.join(os.path.dirname(__file__), "..", "models", "preprocessor.pkl")
 
 TARGET_COL = "Churn"
-ID_COL = "customerID"
 
-# Columns that are categorical in the raw Telco dataset
+# Maps the actual column names in this dataset -> the internal names
+# used everywhere else in the app (backend schemas, frontend form).
+COLUMN_RENAME_MAP = {
+    "Gender": "gender",
+    "Senior Citizen": "SeniorCitizen",
+    "Partner": "Partner",
+    "Dependents": "Dependents",
+    "Tenure Months": "tenure",
+    "Phone Service": "PhoneService",
+    "Multiple Lines": "MultipleLines",
+    "Internet Service": "InternetService",
+    "Online Security": "OnlineSecurity",
+    "Online Backup": "OnlineBackup",
+    "Device Protection": "DeviceProtection",
+    "Tech Support": "TechSupport",
+    "Streaming TV": "StreamingTV",
+    "Streaming Movies": "StreamingMovies",
+    "Contract": "Contract",
+    "Paperless Billing": "PaperlessBilling",
+    "Payment Method": "PaymentMethod",
+    "Monthly Charges": "MonthlyCharges",
+    "Total Charges": "TotalCharges",
+    "Churn Label": "Churn",
+}
+
+# Columns that must never reach the model — leakage or irrelevant identifiers/geo
+DROP_COLS = [
+    "CustomerID", "Count", "Country", "State", "City", "Zip Code",
+    "Lat Long", "Latitude", "Longitude",
+    "Churn Value", "Churn Score", "CLTV", "Churn Reason",
+]
+
+# Columns that are categorical after renaming (Senior Citizen is Yes/No
+# in THIS dataset, unlike the classic version where it's already 0/1 —
+# so it's treated as categorical here, not numeric)
 CATEGORICAL_COLS = [
-    "gender", "Partner", "Dependents", "PhoneService", "MultipleLines",
-    "InternetService", "OnlineSecurity", "OnlineBackup", "DeviceProtection",
-    "TechSupport", "StreamingTV", "StreamingMovies", "Contract",
-    "PaperlessBilling", "PaymentMethod",
+    "gender", "SeniorCitizen", "Partner", "Dependents", "PhoneService",
+    "MultipleLines", "InternetService", "OnlineSecurity", "OnlineBackup",
+    "DeviceProtection", "TechSupport", "StreamingTV", "StreamingMovies",
+    "Contract", "PaperlessBilling", "PaymentMethod",
 ]
 
 NUMERIC_COLS = ["tenure", "MonthlyCharges", "TotalCharges"]
 
-# SeniorCitizen is already 0/1 in the raw file — treat as numeric, no encoding needed
-BINARY_NUMERIC_COLS = ["SeniorCitizen"]
-
 
 def load_raw_data(path: str = RAW_PATH) -> pd.DataFrame:
-    df = pd.read_csv(path)
+    df = pd.read_excel(path)
     return df
 
 
 def clean_data(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
 
-    # TotalCharges is stored as string in the raw file and has blank values
-    # for customers with 0 tenure — coerce to numeric and fill with 0.
+    df = df.drop(columns=[c for c in DROP_COLS if c in df.columns])
+    df = df.rename(columns=COLUMN_RENAME_MAP)
+
+    # TotalCharges can have blanks for customers with 0 tenure
     df["TotalCharges"] = pd.to_numeric(df["TotalCharges"], errors="coerce")
     df["TotalCharges"] = df["TotalCharges"].fillna(0)
-
-    # Drop the customer ID — it's an identifier, not a feature
-    if ID_COL in df.columns:
-        df = df.drop(columns=[ID_COL])
 
     # Normalize target to binary 0/1
     df[TARGET_COL] = df[TARGET_COL].map({"Yes": 1, "No": 0})
@@ -84,8 +129,7 @@ def build_preprocessor(df: pd.DataFrame):
         "scaler": scaler,
         "categorical_cols": CATEGORICAL_COLS,
         "numeric_cols": NUMERIC_COLS,
-        "binary_numeric_cols": BINARY_NUMERIC_COLS,
-        "feature_order": CATEGORICAL_COLS + NUMERIC_COLS + BINARY_NUMERIC_COLS,
+        "feature_order": CATEGORICAL_COLS + NUMERIC_COLS,
     }
 
     return preprocessor, df_encoded
